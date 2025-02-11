@@ -1,50 +1,17 @@
-# Task Automation Platform
-
-A web-based platform that converts natural language descriptions into executable workflows.
-
-## Overview
-
-This platform allows users to describe tasks in natural language, which are then automatically decomposed into executable workflow steps. The workflows are stored in a PostgreSQL database and can be viewed and managed through a clean, modern web interface.
-
-## Features Implemented
-
-### Core Functionality
-- ✅ Natural language task input
-- ✅ Automatic workflow generation
-- ✅ Step-by-step workflow visualization
-- ✅ Persistent storage with PostgreSQL
-
-### Technical Features
-- ✅ Database integration with Drizzle ORM
-- ✅ RESTful API endpoints
-- ✅ Modern React frontend with TypeScript
-- ✅ Real-time UI updates using TanStack Query
-
-## Technical Stack
-
-### Frontend
-- React with TypeScript
-- TanStack Query for data fetching
-- Tailwind CSS for styling
-- shadcn/ui components
-- Wouter for routing
-
-### Backend
-- Express.js server
-- PostgreSQL database
-- Drizzle ORM for database operations
-- Zod for schema validation
-
-## Database Schema
-
-Current database structure:
-
-```typescript
 // Workflow table
 workflows {
   id: serial (primary key)
   task: text
-  steps: jsonb[]
+  steps: jsonb[]  // Stores workflow steps with their actions and parameters
+}
+
+// Workflow Step Structure
+interface WorkflowStep {
+  action: string;      // Type of action (visit, click, input)
+  selector?: string;   // DOM selector for UI interactions
+  url?: string;        // URL for navigation steps
+  value?: string;      // Input value for form fields
+  description: string; // Human-readable step description
 }
 ```
 
@@ -54,24 +21,30 @@ workflows {
 ├── client/
 │   └── src/
 │       ├── components/
-│       │   ├── task-input.tsx
-│       │   └── workflow-display.tsx
+│       │   ├── task-input.tsx      # Task description input form
+│       │   └── workflow-display.tsx # Workflow visualization
 │       ├── pages/
-│       │   └── home.tsx
-│       └── App.tsx
+│       │   ├── home.tsx            # Main application page
+│       │   └── not-found.tsx       # 404 page
+│       ├── lib/
+│       │   └── queryClient.ts      # API client configuration
+│       └── App.tsx                 # Root component
 ├── server/
-│   ├── db.ts
-│   ├── routes.ts
-│   └── storage.ts
+│   ├── db.ts                       # Database connection
+│   ├── routes.ts                   # API endpoints
+│   └── storage.ts                  # Data access layer
 └── shared/
-    └── schema.ts
+    └── schema.ts                   # Shared type definitions
 ```
 
 ## API Endpoints
 
 ### Implemented Endpoints
 - `POST /api/workflows`: Create a new workflow
+  - Request body: `{ task: string }`
+  - Response: Created workflow object
 - `GET /api/workflows`: Get all workflows
+  - Response: Array of workflow objects
 
 ## Setup Instructions
 
@@ -84,40 +57,3 @@ workflows {
 2. **Start Development Server**
    ```bash
    npm run dev
-   ```
-
-   This will start both the frontend and backend servers on port 5000.
-
-## Environment Variables
-
-The following environment variables are automatically configured:
-- `DATABASE_URL`: PostgreSQL connection string
-- `PGPORT`: Database port
-- `PGUSER`: Database user
-- `PGPASSWORD`: Database password
-- `PGDATABASE`: Database name
-- `PGHOST`: Database host
-
-## Future Features
-
-The following features are planned for future implementation:
-
-1. **Authentication System**
-   - User registration and login
-   - Secure session management
-   - User-specific workflows
-
-2. **Enhanced Task Decomposition**
-   - More sophisticated natural language processing
-   - Support for complex multi-step workflows
-   - Custom action definitions
-
-3. **Workflow Execution Tracking**
-   - Real-time execution status
-   - Success/failure logging
-   - Execution history
-
-4. **UI/UX Improvements**
-   - Enhanced workflow visualization
-   - Interactive workflow editor
-   - Progress indicators
