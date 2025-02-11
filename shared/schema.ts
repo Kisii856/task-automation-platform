@@ -1,7 +1,7 @@
-import { pgTable, text, serial, jsonb } from "drizzle-orm/pg-core";
+
+import { pgTable, text, serial, varchar, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { pgTable, serial, text, varchar, timestamp, jsonb } from "drizzle-orm/pg-core";
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -16,12 +16,6 @@ export const workflows = pgTable('workflows', {
   task: text('task').notNull(),
   steps: jsonb('steps').notNull().$type<WorkflowStep[]>(),
   createdAt: timestamp('created_at').defaultNow(),
-});
-
-export const workflows = pgTable("workflows", {
-  id: serial("id").primaryKey(),
-  task: text("task").notNull(),
-  steps: jsonb("steps").$type<WorkflowStep[]>().notNull(),
 });
 
 export const workflowStepSchema = z.object({
