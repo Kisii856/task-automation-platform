@@ -130,7 +130,20 @@ async function decomposeTask(task: string): Promise<WorkflowStep[]> {
   return steps;
 }
 
+import { WorkflowExecutor } from './utils/workflow-executor';
+
+const workflowExecutor = new WorkflowExecutor();
+
 export function registerRoutes(app: Express): Server {
+  app.post('/api/workflows/execute', async (req, res) => {
+    try {
+      const { steps } = req.body;
+      const results = await workflowExecutor.execute(steps);
+      res.json({ success: true, results });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
   app.post('/api/auth/register', async (req, res) => {
     try {
       const { email, password } = req.body;
