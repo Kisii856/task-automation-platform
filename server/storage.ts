@@ -11,7 +11,10 @@ export class DatabaseStorage implements IStorage {
   async createWorkflow(insertWorkflow: InsertWorkflow): Promise<Workflow> {
     const [workflow] = await db
       .insert(workflows)
-      .values(insertWorkflow)
+      .values({
+        task: insertWorkflow.task,
+        steps: insertWorkflow.steps
+      })
       .returning();
     return workflow;
   }
