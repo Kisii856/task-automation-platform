@@ -47,7 +47,7 @@ interface WorkflowStep {
 
 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/task-automation-platform.git
+git clone https://github.com/Kisii856/task-automation-platform.git
 cd task-automation-platform
 ```
 
