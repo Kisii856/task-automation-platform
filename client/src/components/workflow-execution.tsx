@@ -3,13 +3,16 @@ import { useState } from 'react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { toast } from './ui/use-toast';
+import { Progress } from './ui/progress';
 
 export function WorkflowExecution({ steps }) {
   const [isExecuting, setIsExecuting] = useState(false);
   const [results, setResults] = useState([]);
+  const [progress, setProgress] = useState(0);
 
   const executeWorkflow = async () => {
     setIsExecuting(true);
+    setProgress(0);
     try {
       const response = await fetch('/api/workflows/execute', {
         method: 'POST',
@@ -20,6 +23,7 @@ export function WorkflowExecution({ steps }) {
       const data = await response.json();
       if (data.success) {
         setResults(data.results);
+        setProgress(100);
         toast({
           title: 'Workflow executed successfully',
           description: 'All steps completed',
@@ -43,13 +47,18 @@ export function WorkflowExecution({ steps }) {
       <Button 
         onClick={executeWorkflow} 
         disabled={isExecuting}
+        className="w-full mb-4"
       >
         {isExecuting ? 'Executing...' : 'Execute Workflow'}
       </Button>
       
+      {isExecuting && (
+        <Progress value={progress} className="mb-4" />
+      )}
+
       {results.length > 0 && (
-        <div className="mt-4">
-          <h3 className="font-bold">Results:</h3>
+        <div className="space-y-2">
+          <h3 className="font-semibold">Results:</h3>
           <ul className="list-disc pl-4">
             {results.map((result, index) => (
               <li key={index}>{result}</li>
