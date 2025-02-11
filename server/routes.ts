@@ -1,88 +1,90 @@
 
-import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertWorkflowSchema, type WorkflowStep } from "@shared/schema";
 import { z } from "zod";
 
-function parseAIResponse(content: string): WorkflowStep[] {
-  try {
-    const steps = JSON.parse(content);
-    if (!Array.isArray(steps)) throw new Error("Expected array of steps");
-    return steps;
-  } catch (error) {
-    console.error("Failed to parse AI response:", error);
-    return [];
-  }
+function extractUrl(text: string): string | null {
+  const urlMatch = text.match(/https?:\/\/[^\s]+/);
+  return urlMatch ? urlMatch[0] : null;
 }
 
 async function decomposeTask(task: string): Promise<WorkflowStep[]> {
-  try {
-    if (process.env.OPENAI_API_KEY) {
-      const response = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: task }
-        ],
-      });
+  const steps: WorkflowStep[] = [];
+  const lowercaseTask = task.toLowerCase();
 
-      const content = response.choices[0]?.message?.content;
-      if (content) {
-        return parseAIResponse(content);
-      }
-    }
-    
-    // Fallback decomposition logic
-    const steps: WorkflowStep[] = [];
-    
-    // Extract URL if present
-    const urlMatch = task.match(/https?:\/\/[^\s]+/);
-    if (urlMatch) {
-      steps.push({
-        action: "visit",
-        url: urlMatch[0],
-        description: `Navigate to ${urlMatch[0]}`,
-      });
-    }
+  // Handle navigation tasks
+  const url = extractUrl(task);
+  if (url) {
+    steps.push({
+      action: "visit",
+      url,
+      description: `Navigate to ${url}`,
+    });
+  }
 
-    // Handle search related tasks
-    if (task.toLowerCase().includes("search")) {
-      const searchTerm = task.toLowerCase().split("search")[1]?.trim() || "";
+  // Handle search tasks
+  if (lowercaseTask.includes("search")) {
+    const searchTerms = task.replace(/search\s+for\s+|search\s+/i, "").trim();
+    if (!url) {
       steps.push({
         action: "visit",
         url: "https://www.google.com",
         description: "Navigate to Google",
       });
-      
-      steps.push({
-        action: "input",
-        selector: 'input[name="q"]',
-        value: searchTerm,
-        description: `Enter search term: ${searchTerm}`,
-      });
-      
+    }
+    
+    steps.push({
+      action: "input",
+      selector: 'input[name="q"]',
+      value: searchTerms,
+      description: `Enter search terms: "${searchTerms}"`,
+    });
+    
+    steps.push({
+      action: "click",
+      selector: 'input[type="submit"], button[type="submit"]',
+      description: "Submit search",
+    });
+  }
+
+  // Handle click tasks
+  if (lowercaseTask.includes("click")) {
+    const buttonText = task.match(/click\s+(?:on\s+)?["']?([^"']+)["']?/i)?.[1];
+    if (buttonText) {
       steps.push({
         action: "click",
-        selector: 'input[type="submit"]',
-        description: "Submit search",
+        selector: `button:contains("${buttonText}"), a:contains("${buttonText}")`,
+        description: `Click on "${buttonText}"`,
       });
     }
+  }
 
-    // Default step if no specific actions were identified
-    if (steps.length === 0) {
+  // Handle form input tasks
+  if (lowercaseTask.includes("type") || lowercaseTask.includes("enter")) {
+    const inputMatch = task.match(/(?:type|enter)\s+["']?([^"']+)["']?\s+(?:in|into)\s+["']?([^"']+)["']?/i);
+    if (inputMatch) {
+      steps.push({
+        action: "input",
+        selector: `input[placeholder*="${inputMatch[2]}"], input[name*="${inputMatch[2]}"], textarea[placeholder*="${inputMatch[2]}"]`,
+        value: inputMatch[1],
+        description: `Enter "${inputMatch[1]}" into ${inputMatch[2]} field`,
+      });
+    }
+  }
+
+  // Default step if no specific actions were identified
+  if (steps.length === 0) {
+    if (!url) {
       steps.push({
         action: "visit",
         url: "https://www.google.com",
         description: "Navigate to Google",
       });
     }
-
-    return steps;
-  } catch (error) {
-    console.error("Task decomposition error:", error);
-    return [];
   }
+
+  return steps;
 }
 
 export function registerRoutes(app: Express): Server {
