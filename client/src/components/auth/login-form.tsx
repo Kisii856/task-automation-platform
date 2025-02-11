@@ -1,28 +1,27 @@
 
 import { useState } from "react";
+import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const { login } = useAuth();
+  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        localStorage.setItem("token", data.token);
-        window.location.href = "/";
-      }
+      await login(email, password);
     } catch (error) {
-      console.error("Login failed:", error);
+      toast({
+        title: "Error",
+        description: "Invalid credentials",
+        variant: "destructive",
+      });
     }
   };
 
