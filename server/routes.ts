@@ -4,25 +4,44 @@ import { storage } from "./storage";
 import { insertWorkflowSchema, type WorkflowStep } from "@shared/schema";
 
 function decomposeTask(task: string): WorkflowStep[] {
-  // Simple task decomposition logic
-  const steps: WorkflowStep[] = [
-    {
+  // Parse task and generate logical steps
+  const steps: WorkflowStep[] = [];
+  
+  // Extract URL if present
+  const urlMatch = task.match(/https?:\/\/[^\s]+/);
+  if (urlMatch) {
+    steps.push({
+      action: "visit",
+      url: urlMatch[0],
+      description: `Navigate to ${urlMatch[0]}`,
+    });
+  }
+
+  // Common actions based on keywords
+  if (task.toLowerCase().includes("search")) {
+    steps.push({
+      action: "input",
+      selector: "input[type='search'], #search, [aria-label*='search']",
+      value: task.split("search")[1]?.trim() || "",
+      description: "Enter search term",
+    });
+    
+    steps.push({
+      action: "click",
+      selector: "button[type='submit'], #submit, [aria-label*='search']",
+      description: "Submit search",
+    });
+  }
+
+  // If no steps were generated, return a placeholder step
+  if (steps.length === 0) {
+    steps.push({
       action: "visit",
       url: "https://example.com",
-      description: "Navigate to the target website",
-    },
-    {
-      action: "input",
-      selector: "#search",
-      value: "search term",
-      description: "Enter search criteria",
-    },
-    {
-      action: "click",
-      selector: "#submit",
-      description: "Submit the form",
-    },
-  ];
+      description: "Navigate to website",
+    });
+  }
+
   return steps;
 }
 
