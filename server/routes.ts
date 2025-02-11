@@ -27,20 +27,69 @@ function parseAIResponse(content: string): WorkflowStep[] {
 
 async function decomposeTask(task: string): Promise<WorkflowStep[]> {
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: task }
-      ],
-    });
+    if (process.env.OPENAI_API_KEY) {
+      const response = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: task }
+        ],
+      });
 
-    const content = response.choices[0]?.message?.content;
-    if (!content) return [];
+      const content = response.choices[0]?.message?.content;
+      if (content) {
+        return parseAIResponse(content);
+      }
+    }
     
-    return parseAIResponse(content);
+    // Fallback decomposition logic
+    const steps: WorkflowStep[] = [];
+    
+    // Extract URL if present
+    const urlMatch = task.match(/https?:\/\/[^\s]+/);
+    if (urlMatch) {
+      steps.push({
+        action: "visit",
+        url: urlMatch[0],
+        description: `Navigate to ${urlMatch[0]}`,
+      });
+    }
+
+    // Handle search related tasks
+    if (task.toLowerCase().includes("search")) {
+      const searchTerm = task.toLowerCase().split("search")[1]?.trim() || "";
+      steps.push({
+        action: "visit",
+        url: "https://www.google.com",
+        description: "Navigate to Google",
+      });
+      
+      steps.push({
+        action: "input",
+        selector: 'input[name="q"]',
+        value: searchTerm,
+        description: `Enter search term: ${searchTerm}`,
+      });
+      
+      steps.push({
+        action: "click",
+        selector: 'input[type="submit"]',
+        description: "Submit search",
+      });
+    }
+
+    // Default step if no specific actions were identified
+    if (steps.length === 0) {
+      steps.push({
+        action: "visit",
+        url: "https://www.google.com",
+        description: "Navigate to Google",
+      });
+    }
+
+    return steps;
   } catch (error) {
-    console.error("OpenAI API error:", error);
+    console.error("Task decomposition error:", error);
     return [];
   }
 }
