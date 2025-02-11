@@ -19,16 +19,27 @@ export function generateToken(userId: number) {
 }
 
 export async function authenticate(req: Request, res: Response, next: NextFunction) {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'No token provided' });
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: number };
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+
+    if (!process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET not configured');
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as { userId: number };
     const user = await db.select().from(users).where(eq(users.id, decoded.userId));
-    if (!user) return res.status(401).json({ message: 'Invalid token' });
-    req.user = user;
+    
+    if (!user.length) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+
+    req.user = user[0];
     next();
   } catch (error) {
-    res.status(401).json({ message: 'Invalid token' });
+    console.error('Auth error:', error);
+    res.status(401).json({ message: error instanceof Error ? error.message : 'Authentication failed' });
   }
 }

@@ -156,7 +156,7 @@ export function registerRoutes(app: Express): Server {
       res.status(400).json({ message: 'Login failed' });
     }
   });
-  app.post("/api/workflows", async (req, res) => {
+  app.post("/api/workflows", authenticate, async (req, res) => {
     try {
       const parsed = insertWorkflowSchema.parse(req.body);
       const steps = await decomposeTask(parsed.task);
@@ -176,7 +176,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/workflows", async (_req, res) => {
+  app.get("/api/workflows", authenticate, async (_req, res) => {
     const workflows = await storage.getWorkflows();
     res.json(workflows);
   });
