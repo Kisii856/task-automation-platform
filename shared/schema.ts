@@ -1,6 +1,22 @@
 import { pgTable, text, serial, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { pgTable, serial, text, varchar, timestamp, jsonb } from "drizzle-orm/pg-core";
+
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  password: varchar('password', { length: 255 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const workflows = pgTable('workflows', {
+  id: serial('id').primaryKey(),
+  userId: serial('user_id').references(() => users.id),
+  task: text('task').notNull(),
+  steps: jsonb('steps').notNull().$type<WorkflowStep[]>(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
 
 export const workflows = pgTable("workflows", {
   id: serial("id").primaryKey(),

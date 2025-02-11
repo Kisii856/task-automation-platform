@@ -88,6 +88,31 @@ async function decomposeTask(task: string): Promise<WorkflowStep[]> {
 }
 
 export function registerRoutes(app: Express): Server {
+  app.post('/api/auth/register', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      const hashedPassword = await hashPassword(password);
+      const user = await db.insert(users).values({ email, password: hashedPassword }).returning();
+      const token = generateToken(user[0].id);
+      res.json({ token });
+    } catch (error) {
+      res.status(400).json({ message: 'Registration failed' });
+    }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      const user = await db.select().from(users).where(eq(users.email, email));
+      if (!user[0] || !await comparePasswords(password, user[0].password)) {
+        return res.status(401).json({ message: 'Invalid credentials' });
+      }
+      const token = generateToken(user[0].id);
+      res.json({ token });
+    } catch (error) {
+      res.status(400).json({ message: 'Login failed' });
+    }
+  });
   app.post("/api/workflows", async (req, res) => {
     try {
       const parsed = insertWorkflowSchema.parse(req.body);
