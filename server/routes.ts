@@ -1,55 +1,61 @@
+
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertWorkflowSchema, type WorkflowStep } from "@shared/schema";
+import { OpenAI } from "openai";
+import { z } from "zod";
 
-function decomposeTask(task: string): WorkflowStep[] {
-  // Parse task and generate logical steps
-  const steps: WorkflowStep[] = [];
-  
-  // Extract URL if present
-  const urlMatch = task.match(/https?:\/\/[^\s]+/);
-  if (urlMatch) {
-    steps.push({
-      action: "visit",
-      url: urlMatch[0],
-      description: `Navigate to ${urlMatch[0]}`,
-    });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+const systemPrompt = `You are a browser automation expert. Generate specific steps for browser automation tasks.
+Each step must have these fields: action (navigate/click/type/scrape), description, and appropriate fields like url, selector, or value.
+Example output: [{"action":"navigate","url":"https://example.com","description":"Navigate to website"},{"action":"click","selector":"#search","description":"Click search box"}]`;
+
+function parseAIResponse(content: string): WorkflowStep[] {
+  try {
+    const steps = JSON.parse(content);
+    if (!Array.isArray(steps)) throw new Error("Expected array of steps");
+    return steps;
+  } catch (error) {
+    console.error("Failed to parse AI response:", error);
+    return [];
   }
+}
 
-  // Common actions based on keywords
-  if (task.toLowerCase().includes("search")) {
-    steps.push({
-      action: "input",
-      selector: "input[type='search'], #search, [aria-label*='search']",
-      value: task.split("search")[1]?.trim() || "",
-      description: "Enter search term",
+async function decomposeTask(task: string): Promise<WorkflowStep[]> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: task }
+      ],
     });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) return [];
     
-    steps.push({
-      action: "click",
-      selector: "button[type='submit'], #submit, [aria-label*='search']",
-      description: "Submit search",
-    });
+    return parseAIResponse(content);
+  } catch (error) {
+    console.error("OpenAI API error:", error);
+    return [];
   }
-
-  // If no steps were generated, return a placeholder step
-  if (steps.length === 0) {
-    steps.push({
-      action: "visit",
-      url: "https://example.com",
-      description: "Navigate to website",
-    });
-  }
-
-  return steps;
 }
 
 export function registerRoutes(app: Express): Server {
   app.post("/api/workflows", async (req, res) => {
     try {
       const parsed = insertWorkflowSchema.parse(req.body);
-      const steps = decomposeTask(parsed.task);
+      const steps = await decomposeTask(parsed.task);
+      
+      if (steps.length === 0) {
+        res.status(400).json({ message: "Failed to generate workflow steps" });
+        return;
+      }
+
       const workflow = await storage.createWorkflow({
         task: parsed.task,
         steps,
