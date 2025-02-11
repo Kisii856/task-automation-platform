@@ -1,0 +1,253 @@
+Okay, sticking with OpenAI is a perfectly valid choice. Given that you already have some code using the OpenAI API, it might be easier to refine your implementation and optimize its performance.
+
+Here's a focused approach to improving task decomposition with OpenAI in your server/routes.ts file:
+
+1. Stronger Prompt Engineering:
+
+The prompt is the most critical factor in getting good results from OpenAI. Let's create a more robust prompt with examples and clear instructions. Use multi-line strings in JavaScript (template literals) for readability.
+
+const systemPrompt = `
+You are a highly skilled browser automation expert. Your goal is to translate user requests into a sequence of actionable steps that can be executed by a browser automation tool.
+
+**Instructions:**
+
+1.  **Understand the User's Intent:** Carefully analyze the user's request to determine the desired outcome.
+2.  **Break Down the Task:** Decompose the overall task into a series of smaller, more manageable steps.
+3.  **Generate JSON Output:** Provide all steps for the user to accomplish their task.
+4.  **Choose Specific Actions:**
+    *   \u0060navigate\u0060: Go to the URL.
+    *   \u0060click\u0060: Click the element using a CSS selector.
+    *   \u0060type\u0060: Type text into an element using a CSS selector.
+    *   \u0060scrape\u0060: Extract text content from an element using a CSS selector.
+    *   \u0060waitForSelector\u0060: Wait for an element with this selector before continuing
+    *   \u0060scroll\u0060: Scroll the page.
+    *   \u0060ifExist\u0060: Use this action when a selector may or may not exist.
+    *   \u0060gotoFrame\u0060: Used to navigate to a different frame.
+    
+5.  **Provide Specific Selectors:** Use very specific and detailed steps.
+6. Provide an additional key in the JSON call \u0060description\u0060, with the description of the specific action.
+7.  Use \u0060selector\u0060 to store the CSS selector for a specific element.
+8.  Make sure if you use an action of type click, to have a valid selector.
+9.  If the content isn't loaded use \u0060waitForSelector\u0060.
+10. Only store data using scrape action.
+
+**Example Output Format:**
+
+\`\`\`json
+[
+    {
+        "action": "navigate",
+        "url": "https://www.example.com",
+        "description": "Navigate to the example website"
+    },
+    {
+        "action": "type",
+        "selector": "#search-box",
+        "text": "Example Search",
+        "description": "Type 'Example Search' into the search box"
+    },
+    {
+        "action": "click",
+        "selector": "#search-button",
+        "description": "Click the search button"
+    },
+    {
+        "action": "scrape",
+        "selector": ".results",
+        "output": "searchResults",
+        "description": "Extract the search results"
+    }
+]
+\`\`\`
+`;
+content_copy
+download
+Use code with caution.
+TypeScript
+
+Key improvements to prompt:
+
+Use waitForSelector and Scroll so that content is guaranteed to be loaded before continuing.
+
+Added different action steps
+
+Give clear instructions on the keys in the output JSON with \u0060.
+
+Added a "description" to the key so the user knows exactly what the step is doing, and can edit it accordingly if needed.
+
+2. Updated routes.ts Code:
+
+// server/routes.ts
+import express, { Request, Response } from 'express';
+import { db } from './db'; // TODO: Migrate to Firestore
+import { OpenAI } from 'openai';
+import { z } from "zod"; //ZOD to make proper validation
+const router = express.Router();
+
+// Initialize OpenAI (Replace with your API key)
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+//The system prompt created above
+const systemPrompt = `
+You are a highly skilled browser automation expert. Your goal is to translate user requests into a sequence of actionable steps that can be executed by a browser automation tool.
+
+**Instructions:**
+
+1.  **Understand the User's Intent:** Carefully analyze the user's request to determine the desired outcome.
+2.  **Break Down the Task:** Decompose the overall task into a series of smaller, more manageable steps.
+3.  **Generate JSON Output:** Provide all steps for the user to accomplish their task.
+4.  **Choose Specific Actions:**
+    *   \u0060navigate\u0060: Go to the URL.
+    *   \u0060click\u0060: Click the element using a CSS selector.
+    *   \u0060type\u0060: Type text into an element using a CSS selector.
+    *   \u0060scrape\u0060: Extract text content from an element using a CSS selector.
+    *   \u0060waitForSelector\u0060: Wait for an element with this selector before continuing
+    *   \u0060scroll\u0060: Scroll the page.
+    *   \u0060ifExist\u0060: Use this action when a selector may or may not exist.
+    *   \u0060gotoFrame\u0060: Used to navigate to a different frame.
+    
+5.  **Provide Specific Selectors:** Use very specific and detailed steps.
+6. Provide an additional key in the JSON call \u0060description\u0060, with the description of the specific action.
+7.  Use \u0060selector\u0060 to store the CSS selector for a specific element.
+8.  Make sure if you use an action of type click, to have a valid selector.
+9.  If the content isn't loaded use \u0060waitForSelector\u0060.
+10. Only store data using scrape action.
+
+**Example Output Format:**
+
+\`\`\`json
+[
+    {
+        "action": "navigate",
+        "url": "https://www.example.com",
+        "description": "Navigate to the example website"
+    },
+    {
+        "action": "type",
+        "selector": "#search-box",
+        "text": "Example Search",
+        "description": "Type 'Example Search' into the search box"
+    },
+    {
+        "action": "click",
+        "selector": "#search-button",
+        "description": "Click the search button"
+    },
+    {
+        "action": "scrape",
+        "selector": ".results",
+        "output": "searchResults",
+        "description": "Extract the search results"
+    }
+]
+\`\`\`
+`;
+
+//Zod to create a schma for the workflow object
+const workflowSchema = z.object({
+    task:z.string().min(3)
+})
+router.post('/api/workflows', async (req: Request, res: Response) => {
+    try {
+        // Validate the request body against the schema
+        const validated = workflowSchema.safeParse(req.body)
+        if (!validated.success){
+            return res.status(400).json({message:"Invalid workflow object"})
+        }
+        const { task } = req.body;
+
+        // 1. AI Call to generate the steps.
+        const response = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo", // Choose your OpenAI model
+            messages: [
+                {
+                    role: "system",
+                    content: systemPrompt
+                },
+                {
+                    role: "user",
+                    content: `Task: ${task}`,
+                },
+            ],
+        });
+
+        // 2. Extract the steps from AI response.
+        const stepsString = response.choices[0]?.message?.content;
+
+        if (!stepsString) {
+            throw new Error("No steps generated by AI.");
+        }
+        // Validate the json that is passed as the steops
+        let steps;
+        try {
+            steps = JSON.parse(stepsString);
+             if (!Array.isArray(steps)) {
+                    throw new Error("Expected an array of steps.");
+                }
+        } catch (error:any) {
+            console.error("Error parsing AI response:", error);
+            return res.status(500).json({ message: "Error parsing AI response: " + error.message });
+        }
+
+        // 3. Validate steps (Add your validation logic here)
+        const isValid = (steps as any[]).every(step =>
+            typeof step === 'object' && step !== null &&
+            'action' in step && typeof step.action === 'string'
+        );
+
+        if (!isValid) {
+            return res.status(400).json({ message: "Invalid steps generated by AI." });
+        }
+
+        // 4. Save the workflow to the database.
+        // TODO: IMPLEMENT SAVE FUNCTIONALITY FOR FIRE STORE
+
+         // Save the workflow to the database.
+        // TODO: IMPLEMENT SAVE FUNCTIONALITY FOR FIRE STORE
+        const workflowObj = {
+            task,
+            steps: steps
+        };
+
+       // Assuming you have a workflows collection in Firebase
+        const docRef = await db.collection('workflows').add(workflowObj);
+
+          // Send a success response.
+          res.status(201).json({ id: docRef.id, ...workflowObj });
+
+    } catch (error: any) {
+        console.error("Error creating workflow:", error);
+        res.status(500).json({ message: "Error creating workflow: " + error.message });
+    }
+});
+
+router.get('/api/workflows', async (req: Request, res: Response) => {
+    try {
+         // Fetch all workflows from Firebase
+            const workflowCollection = await db.collection('workflows').get();
+
+            // Convert the query snapshot to an array of workflow objects
+            const workflows = workflowCollection.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+        res.json(workflows);
+    } catch (error: any) {
+        console.error("Error getting workflows:", error);
+        res.status(500).json({ message: "Error getting workflows: " + error.message });
+    }
+});
+
+export default router;
+content_copy
+download
+Use code with caution.
+TypeScript
+
+3. Important considerations
+
+You will need to sanitize user input and do validation to prevent any security risks.
+
+This code gives you a more solid foundation for AI-powered task decomposition using OpenAI. Remember to test, iterate, and refine to get the best possible results for your specific use cases.
