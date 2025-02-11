@@ -1,47 +1,32 @@
 
 import { chromium } from 'playwright';
-import { WorkflowExecutor } from '../utils/workflow-executor';
 import { humanLikeTyping, humanLikeClick, humanLikeScrolling } from '../utils/human-interaction';
+import { decomposeTask } from '../utils/task-decomposer';
 
 async function runTests() {
   console.log('Starting automation tests...');
-  const executor = new WorkflowExecutor();
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
   
   try {
-    // Test workflow execution
-    const steps = [
-      {
-        action: 'visit',
-        url: 'https://www.google.com',
-        description: 'Navigate to Google'
-      },
-      {
-        action: 'input',
-        selector: 'input[name="q"]',
-        value: 'automation testing',
-        description: 'Enter search terms'
-      },
-      {
-        action: 'click',
-        selector: 'input[type="submit"]',
-        description: 'Submit search'
-      },
-      {
-        action: 'scroll',
-        description: 'Scroll through results'
-      }
-    ];
+    // Test task decomposition
+    console.log('Testing task decomposition...');
+    const steps = await decomposeTask("Search Google for 'automation testing'");
+    console.log('Decomposed steps:', steps);
 
-    console.log('Executing test workflow...');
-    const results = await executor.execute(steps);
-    console.log('Workflow results:', results);
+    // Test human-like interactions
+    console.log('Testing human-like interactions...');
+    await page.goto('https://www.google.com');
+    await humanLikeTyping(page, 'input[name="q"]', 'automation testing');
+    await humanLikeClick(page, 'input[type="submit"]');
+    await humanLikeScrolling(page);
 
     console.log('All tests passed successfully!');
   } catch (error) {
     console.error('Test failed:', error);
     process.exit(1);
   } finally {
-    await executor.cleanup();
+    await browser.close();
   }
 }
 
