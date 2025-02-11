@@ -3,16 +3,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertWorkflowSchema, type WorkflowStep } from "@shared/schema";
-import { OpenAI } from "openai";
 import { z } from "zod";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-const systemPrompt = `You are a browser automation expert. Generate specific steps for browser automation tasks.
-Each step must have these fields: action (navigate/click/type/scrape), description, and appropriate fields like url, selector, or value.
-Example output: [{"action":"navigate","url":"https://example.com","description":"Navigate to website"},{"action":"click","selector":"#search","description":"Click search box"}]`;
 
 function parseAIResponse(content: string): WorkflowStep[] {
   try {
